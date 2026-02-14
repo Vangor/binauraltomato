@@ -35,12 +35,14 @@ interface DayViewProps {
 
 export function DayView({ selectedDate, onSessionsChange }: DayViewProps) {
   const trackRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [createPreview, setCreatePreview] = useState<{ startY: number; endY: number } | null>(null)
   const [dragState, setDragState] = useState<
     | { type: 'move'; sessionId: string; offsetY: number; previewStartMinutes?: number }
     | { type: 'resize'; sessionId: string; startMinutes: number; previewDurationMinutes?: number }
     | null
   >(null)
+  const [, setMinuteTick] = useState(0)
 
   const hasSeedData = getSessionsByDate(selectedDate).some((s) => s.id.startsWith('seed-'))
   const blocks = getDayBlocks(selectedDate, DAY_START_HOUR, DAY_END_HOUR, {
@@ -59,6 +61,35 @@ export function DayView({ selectedDate, onSessionsChange }: DayViewProps) {
   endOfDay.setHours(DAY_END_HOUR, 59, 59, 999)
   const totalMs = endOfDay.getTime() - startOfDay.getTime()
   const trackHeightPx = TOTAL_HOURS * ROW_HEIGHT_PX
+
+  const now = new Date()
+  const currentTimeTopPx =
+    isToday && now >= startOfDay && now <= endOfDay
+      ? ((now.getTime() - startOfDay.getTime()) / totalMs) * trackHeightPx
+      : null
+
+  useEffect(() => {
+    if (!isToday) return
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [isToday])
+
+  useEffect(() => {
+    if (!isToday) return
+    const el = scrollContainerRef.current
+    if (!el) return
+    const now = new Date()
+    const startOfDayNow = new Date(selectedDate + 'T12:00:00')
+    startOfDayNow.setHours(DAY_START_HOUR, 0, 0, 0)
+    const endOfDayNow = new Date(selectedDate + 'T12:00:00')
+    endOfDayNow.setHours(DAY_END_HOUR, 59, 59, 999)
+    if (now < startOfDayNow || now > endOfDayNow) return
+    const totalMs = endOfDayNow.getTime() - startOfDayNow.getTime()
+    const currentTop = ((now.getTime() - startOfDayNow.getTime()) / totalMs) * trackHeightPx
+    const visible = VISIBLE_TRACK_HEIGHT_PX
+    const scrollTo = currentTop - visible / 2 + ROW_HEIGHT_PX / 2
+    el.scrollTop = Math.max(0, Math.min(scrollTo, el.scrollHeight - visible))
+  }, [selectedDate, isToday, trackHeightPx])
 
   const pxToMinutes = useCallback(
     (px: number) => {
@@ -252,6 +283,7 @@ export function DayView({ selectedDate, onSessionsChange }: DayViewProps) {
         <p className="text-xs text-slate-500 py-4">No sessions this day. Drag on the track below to create one.</p>
       ) : null}
       <div
+        ref={scrollContainerRef}
         className="overflow-y-auto overflow-x-hidden"
         style={{ maxHeight: VISIBLE_TRACK_HEIGHT_PX, scrollbarGutter: 'stable' }}
       >
@@ -278,6 +310,16 @@ export function DayView({ selectedDate, onSessionsChange }: DayViewProps) {
             style={{ height: trackHeightPx, minHeight: trackHeightPx }}
             onMouseDown={handleTrackMouseDown}
           >
+          {isToday && currentTimeTopPx != null && (
+            <div
+              className="absolute left-0 right-0 z-10 pointer-events-none flex items-center"
+              style={{ top: currentTimeTopPx, transform: 'translateY(-50%)' }}
+              aria-hidden
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <div className="flex-1 h-0.5 bg-red-500/90" />
+            </div>
+          )}
           {createPreview && (
             <div
               className="absolute left-0 right-0 rounded-sm bg-blue-600/60 border border-blue-400 pointer-events-none"
