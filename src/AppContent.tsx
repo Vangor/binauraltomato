@@ -228,7 +228,7 @@ export default function AppContent() {
   }, [])
 
   return (
-    <div className="min-h-screen h-screen bg-background text-foreground flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header
         className="border-b border-slate-800 p-4"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
@@ -302,9 +302,9 @@ export default function AppContent() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full min-h-0 overflow-hidden">
-        <main className="flex-1 flex flex-col min-h-0 p-8">
-          <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full min-h-0">
+        <main className="flex-1 flex flex-col min-h-0 p-8 flex-basis-0">
+          <div className="flex flex-col items-center justify-center py-8">
             <Timer
             timeRemaining={timer.timeRemaining}
             progress={timer.progress}
@@ -321,7 +321,7 @@ export default function AppContent() {
         </main>
 
         {sidebarOpen && (
-          <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 shrink-0 flex flex-col min-h-0 lg:self-stretch lg:min-h-full">
+          <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 shrink-0 flex flex-col min-h-0 overflow-y-auto lg:self-stretch lg:min-h-full">
             <Calendar />
           </aside>
         )}

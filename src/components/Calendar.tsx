@@ -66,7 +66,7 @@ function SessionsList({
   }
 
   return (
-    <div className="space-y-3 border-t border-slate-700 pt-3">
+    <div className="space-y-3 pt-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-slate-400">Sessions</span>
         {dayTotal > 0 && (
