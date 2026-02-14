@@ -10,6 +10,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="crash-report" style="display:none;position:fixed;inset:0;background:#0f172a;color:#fca5a5;padding:2rem;font-family:monospace;font-size:12px;overflow:auto;z-index:9999;"></div>
+    <script>
+      window.__crashReport = function(msg) {
+        var el = document.getElementById('crash-report');
+        if (el) { el.style.display = 'block'; el.textContent = (el.textContent || '') + msg + '\n'; }
+      };
+      window.onerror = function(m, s, line, col, err) {
+        window.__crashReport('ERROR: ' + m + ' at ' + s + ':' + line + ':' + col + (err && err.stack ? '\n' + err.stack : ''));
+        return false;
+      };
+      window.onunhandledrejection = function(e) {
+        window.__crashReport('UNHANDLED REJECTION: ' + (e.reason && (e.reason.message || String(e.reason))) + (e.reason && e.reason.stack ? '\n' + e.reason.stack : ''));
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

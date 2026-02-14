@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Clock, Target } from 'lucide-react'
 import { getSessionsByDate, getTotalMinutesByDate, getStreak, getTotalHours } from '../utils/sessionStorage'
 import { formatDuration } from '../utils/formatTime'
 
@@ -58,12 +58,13 @@ export function Calendar() {
       </div>
 
       <div className="grid grid-cols-7 gap-2">
-        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-          <div key={i} className="text-center text-xs text-slate-500 py-2">
-            {day}
-          </div>
-        ))}
-        {days.map((date, i) => {
+        <>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
+            <div key={i} className="text-center text-xs text-slate-500 py-2">
+              {day}
+            </div>
+          ))}
+          {days.map((date, i) => {
           const dateKey = getDateKey(date)
           const minutes = getTotalMinutesByDate(dateKey)
           const isToday = getDateKey(new Date()) === dateKey
@@ -90,6 +91,7 @@ export function Calendar() {
             </button>
           )
         })}
+        </>
       </div>
 
       <div className="grid grid-cols-2 gap-4 pt-4">
@@ -104,20 +106,52 @@ export function Calendar() {
       </div>
 
       {selectedDate && (() => {
-        const daySessions = getSessionsByDate(selectedDate)
+        const daySessions = getSessionsByDate(selectedDate).filter(
+          (s) => s.totalMinutes > 0
+        )
+        const dayTotal = daySessions.reduce((sum, s) => sum + s.totalMinutes, 0)
+        const displayDate = new Date(selectedDate + 'T12:00:00')
+        const isToday = getDateKey(displayDate) === getDateKey(new Date())
+        const dateLabel = isToday
+          ? 'Today'
+          : displayDate.toLocaleDateString('default', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric',
+            })
         return (
-          <div className="bg-slate-800 rounded-lg p-4 space-y-2">
-            <div className="text-sm font-medium mb-2">
-              {new Date(selectedDate).toLocaleDateString()}
+          <div className="bg-slate-800 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-slate-200">
+                {dateLabel}
+              </span>
+              {dayTotal > 0 && (
+                <span className="text-xs text-slate-400 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  {formatDuration(dayTotal)} total
+                </span>
+              )}
             </div>
             {daySessions.length === 0 ? (
-              <div className="text-sm text-slate-400">No sessions recorded</div>
+              <p className="text-sm text-slate-400">
+                No completed sessions this day
+              </p>
             ) : (
-              daySessions.map((session) => (
-                <div key={session.id} className="text-sm text-slate-300">
-                  {session.cyclesCompleted} cycles · {formatDuration(session.totalMinutes)}
-                </div>
-              ))
+              <ul className="space-y-2">
+                {daySessions.map((session) => (
+                  <li
+                    key={session.id}
+                    className="flex items-center gap-2 text-sm text-slate-300"
+                  >
+                    <Target className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>
+                      {session.cyclesCompleted} {session.cyclesCompleted === 1 ? 'cycle' : 'cycles'}
+                      {' · '}
+                      {formatDuration(session.totalMinutes)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )

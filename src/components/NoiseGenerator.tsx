@@ -1,10 +1,14 @@
+import { useState } from 'react'
 import { Play, Square, AlertCircle } from 'lucide-react'
 import { NoiseConfig, BinauralPreset, AmbientPreset } from '../types'
 
 interface NoiseGeneratorProps {
   config: NoiseConfig
   ambientLoadError?: AmbientPreset | null
+  startError?: string | null
   onToggle: () => void
+  onBeforeStart?: () => Promise<void>
+  onStartError?: (err: unknown) => void
   onBinauralPresetChange: (preset: BinauralPreset) => void
   onAmbientPresetChange: (preset: AmbientPreset) => void
   onBinauralVolumeChange: (volume: number) => void
@@ -35,23 +39,52 @@ const AMBIENT_OPTIONS: { value: AmbientPreset; label: string }[] = [
 export function NoiseGenerator({
   config,
   ambientLoadError = null,
+  startError = null,
   onToggle,
+  onBeforeStart,
+  onStartError,
   onBinauralPresetChange,
   onAmbientPresetChange,
   onBinauralVolumeChange,
   onAmbientVolumeChange,
 }: NoiseGeneratorProps) {
+  const [starting, setStarting] = useState(false)
+
+  const handleToggle = async () => {
+    if (config.enabled) {
+      onToggle()
+      return
+    }
+    setStarting(true)
+    try {
+      await onBeforeStart?.()
+      onToggle()
+    } catch (err) {
+      console.error('[audio] Start failed', err)
+      onStartError?.(err)
+    } finally {
+      setStarting(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-medium text-slate-300">Binaural &amp; Ambient</h3>
 
+      {startError && (
+        <div className="rounded-lg bg-red-900/30 border border-red-700/50 p-2 text-xs text-red-200">
+          {startError}
+        </div>
+      )}
+
       <button
         type="button"
-        onClick={onToggle}
+        onClick={handleToggle}
+        disabled={starting}
         className={`w-full flex items-center justify-center gap-2 rounded-lg py-3 px-4 font-medium transition-colors ${
           config.enabled
             ? 'bg-red-600/80 hover:bg-red-600 text-white'
-            : 'bg-blue-600 hover:bg-blue-500 text-white'
+            : 'bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50'
         }`}
         aria-label={config.enabled ? 'Stop audio' : 'Start audio'}
       >
@@ -60,6 +93,8 @@ export function NoiseGenerator({
             <Square className="w-5 h-5" aria-hidden />
             Stop
           </>
+        ) : starting ? (
+          'Starting…'
         ) : (
           <>
             <Play className="w-5 h-5" aria-hidden />
@@ -134,9 +169,9 @@ export function NoiseGenerator({
               <div className="mt-2 flex items-start gap-2 rounded-lg bg-amber-900/30 border border-amber-700/50 p-2 text-xs text-amber-200">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden />
                 <span>
-                  Couldn’t load ambient sound (from{' '}
+                  Couldn’t load bundled ambient sound (source:{' '}
                   <a href="https://github.com/remvze/moodist" target="_blank" rel="noopener noreferrer" className="underline">Moodist</a>
-                  ). Check your connection or try again.
+                  ). Try another preset or restart the app.
                 </span>
               </div>
             )}
