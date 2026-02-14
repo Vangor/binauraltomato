@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
-import { getTone, useAudio } from './hooks/useAudio'
+import { useEffect } from 'react'
+import { getTone } from './hooks/useAudio'
 import { NoiseGenerator } from './components/NoiseGenerator'
 import { NoiseConfig, BinauralPreset, AmbientPreset } from './types'
 
-const BINAURAL_PRESETS: BinauralPreset[] = ['off', 'focus', 'study', 'work', 'relax', 'rest', 'energy', 'calm', 'block-noise']
-const AMBIENT_PRESETS: AmbientPreset[] = ['off', 'cafe', 'coffee-shop', 'airport', 'rain', 'library']
+export const BINAURAL_PRESETS: BinauralPreset[] = ['off', 'focus', 'study', 'work', 'relax', 'rest', 'energy', 'calm', 'block-noise']
+export const AMBIENT_PRESETS: AmbientPreset[] = ['off', 'cafe', 'coffee-shop', 'airport', 'rain', 'library']
 
 const DEFAULT_NOISE_CONFIG: NoiseConfig = {
   enabled: false,
@@ -16,7 +16,7 @@ const DEFAULT_NOISE_CONFIG: NoiseConfig = {
   fadeOut: true,
 }
 
-function migrateNoiseConfig(stored: Record<string, unknown>): NoiseConfig {
+export function migrateNoiseConfig(stored: Record<string, unknown>): NoiseConfig {
   const safe =
     stored != null && typeof stored === 'object' && !Array.isArray(stored)
       ? stored
@@ -42,16 +42,23 @@ function migrateNoiseConfig(stored: Record<string, unknown>): NoiseConfig {
 interface AudioPanelProps {
   noiseConfig: NoiseConfig
   setNoiseConfig: (c: NoiseConfig | ((prev: NoiseConfig) => NoiseConfig)) => void
+  ambientLoadError?: AmbientPreset | null
+  startError?: string | null
+  onStartError?: (err: unknown) => void
 }
 
-export default function AudioPanel({ noiseConfig, setNoiseConfig }: AudioPanelProps) {
+export default function AudioPanel({
+  noiseConfig,
+  setNoiseConfig,
+  ambientLoadError = null,
+  startError = null,
+  onStartError,
+}: AudioPanelProps) {
   const config = migrateNoiseConfig(noiseConfig as unknown as Record<string, unknown>)
-  const { ambientLoadError } = useAudio(config)
-  const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (config.enabled) setStartError(null)
-  }, [config.enabled])
+    if (config.enabled && onStartError) onStartError(null)
+  }, [config.enabled, onStartError])
 
   const onBeforeStart = async () => {
     const Tone = await getTone()
@@ -67,7 +74,7 @@ export default function AudioPanel({ noiseConfig, setNoiseConfig }: AudioPanelPr
         startError={startError}
         onToggle={() => setNoiseConfig((c) => ({ ...c, enabled: !c.enabled }))}
         onBeforeStart={onBeforeStart}
-        onStartError={(err) => setStartError(err instanceof Error ? err.message : String(err))}
+        onStartError={(err) => onStartError?.(err)}
         onBinauralPresetChange={(binauralPreset) => setNoiseConfig((c) => ({ ...c, binauralPreset }))}
         onAmbientPresetChange={(ambientPreset) => setNoiseConfig((c) => ({ ...c, ambientPreset }))}
         onBinauralVolumeChange={(binauralVolume) => setNoiseConfig((c) => ({ ...c, binauralVolume }))}

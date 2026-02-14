@@ -1,4 +1,4 @@
-import { Play, Pause, Square, SkipForward } from 'lucide-react'
+import { Play, Pause, Square, SkipForward, Shuffle } from 'lucide-react'
 import { formatTime } from '../utils/formatTime'
 import { TimerState } from '../types'
 
@@ -12,6 +12,7 @@ interface TimerProps {
   onStop: () => void
   onSkip: () => void
   onAdjustMinutes?: (delta: number) => void
+  onShuffle?: () => void
 }
 
 export function Timer({
@@ -24,6 +25,7 @@ export function Timer({
   onStop,
   onSkip,
   onAdjustMinutes,
+  onShuffle,
 }: TimerProps) {
   const circumference = 2 * Math.PI * 90
   const offset = circumference * (1 - progress)
@@ -118,6 +120,15 @@ export function Timer({
         >
           <SkipForward className="w-6 h-6" />
         </button>
+        {onShuffle && (
+          <button
+            onClick={onShuffle}
+            className="p-4 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors"
+            aria-label="Shuffle binaural and ambient"
+          >
+            <Shuffle className="w-6 h-6" />
+          </button>
+        )}
       </div>
     </div>
   )

@@ -194,70 +194,96 @@ export function Calendar() {
   const streak = getStreak()
   const totalHours = getTotalHours()
 
+  const displayDate = selectedDate ?? getDateKey(new Date())
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-slate-300">
-          {days[0].toLocaleString('default', { month: 'long', year: 'numeric' })}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => navigateDate('prev')}
-            className="p-1 rounded hover:bg-slate-800"
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => navigateDate('next')}
-            className="p-1 rounded hover:bg-slate-800"
-            aria-label="Next week"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="shrink-0 mb-4">
+        <DayView
+          selectedDate={displayDate}
+          onSessionsChange={() => setRefresh((r) => r + 1)}
+        />
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        <>
+      <div className="shrink-0 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium text-slate-300">
+            {days[0].toLocaleString('default', { month: 'long', year: 'numeric' })}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigateDate('prev')}
+              className="p-1 rounded hover:bg-slate-800"
+              aria-label="Previous week"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => navigateDate('next')}
+              className="p-1 rounded hover:bg-slate-800"
+              aria-label="Next week"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 gap-2">
           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
             <div key={i} className="text-center text-xs text-slate-500 py-2">
               {day}
             </div>
           ))}
           {days.map((date, i) => {
-          const dateKey = getDateKey(date)
-          const focusMinutes = getFocusMinutesByDate(dateKey)
-          const isToday = getDateKey(new Date()) === dateKey
-          const isCurrentMonth = date.getMonth() === currentDate.getMonth()
+            const dateKey = getDateKey(date)
+            const focusMinutes = getFocusMinutesByDate(dateKey)
+            const isToday = getDateKey(new Date()) === dateKey
+            const isCurrentMonth = date.getMonth() === currentDate.getMonth()
 
-          return (
-            <button
-              key={i}
-              onClick={() => setSelectedDate(selectedDate === dateKey ? null : dateKey)}
-              className={`p-2 rounded-lg text-sm transition-colors flex flex-col items-center ${
-                isToday
-                  ? 'bg-blue-600 text-white'
-                  : selectedDate === dateKey
-                  ? 'bg-slate-700 text-white'
-                  : isCurrentMonth
-                  ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  : 'bg-slate-900 text-slate-600'
-              }`}
-            >
-              <div className="text-xs font-medium">{date.getDate()}</div>
-              {focusMinutes > 0 && (
-                <div className="text-[10px] opacity-90 mt-0.5 tabular-nums">
-                  {formatDuration(focusMinutes)}
-                </div>
-              )}
-            </button>
-          )
-        })}
-        </>
+            return (
+              <button
+                key={i}
+                onClick={() => setSelectedDate(selectedDate === dateKey ? null : dateKey)}
+                className={`p-2 rounded-lg text-sm transition-colors flex flex-col items-center ${
+                  isToday
+                    ? 'bg-blue-600 text-white'
+                    : selectedDate === dateKey
+                    ? 'bg-slate-700 text-white'
+                    : isCurrentMonth
+                    ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    : 'bg-slate-900 text-slate-600'
+                }`}
+              >
+                <div className="text-xs font-medium">{date.getDate()}</div>
+                {focusMinutes > 0 && (
+                  <div className="text-[10px] opacity-90 mt-0.5 tabular-nums">
+                    {formatDuration(focusMinutes)}
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 pt-4">
+      {selectedDate ? (
+        <div
+          key={refresh}
+          className="flex-1 min-h-0 mt-4 overflow-y-auto"
+          style={{ scrollbarGutter: 'stable' }}
+        >
+          <div className="bg-slate-800 rounded-lg p-4">
+            <SessionsList
+              selectedDate={selectedDate}
+              onSessionsChange={() => setRefresh((r) => r + 1)}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0" aria-hidden />
+      )}
+
+      <div className="shrink-0 grid grid-cols-2 gap-4 pt-4 mt-auto">
         <div className="bg-slate-800 rounded-lg p-4">
           <div className="text-xs text-slate-400 mb-1">Streak</div>
           <div className="text-2xl font-semibold">{streak} days</div>
@@ -267,19 +293,6 @@ export function Calendar() {
           <div className="text-2xl font-semibold">{totalHours}h</div>
         </div>
       </div>
-
-      {selectedDate && (
-        <div key={refresh} className="bg-slate-800 rounded-lg p-4 space-y-4">
-          <DayView
-            selectedDate={selectedDate}
-            onSessionsChange={() => setRefresh((r) => r + 1)}
-          />
-          <SessionsList
-            selectedDate={selectedDate}
-            onSessionsChange={() => setRefresh((r) => r + 1)}
-          />
-        </div>
-      )}
     </div>
   )
 }

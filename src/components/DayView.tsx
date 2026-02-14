@@ -17,6 +17,8 @@ const TOTAL_HOURS = DAY_END_HOUR - DAY_START_HOUR + 1
 const ROW_HEIGHT_PX = 28
 const MIN_BLOCK_HEIGHT_PX = 22
 const SNAP_MINUTES = 5
+const VISIBLE_HOURS = 8
+const VISIBLE_TRACK_HEIGHT_PX = VISIBLE_HOURS * ROW_HEIGHT_PX
 
 function getDateKey(date: Date): string {
   return date.toISOString().split('T')[0]
@@ -249,29 +251,33 @@ export function DayView({ selectedDate, onSessionsChange }: DayViewProps) {
       {blocks.length === 0 && !createPreview ? (
         <p className="text-xs text-slate-500 py-4">No sessions this day. Drag on the track below to create one.</p>
       ) : null}
-      <div className="flex gap-3">
-        <div
-          className="flex flex-col justify-between text-xs text-slate-500 shrink-0 w-14 py-0.5"
-          style={{ height: trackHeightPx }}
-        >
-          {hours.map((h) => (
-            <span key={h} className="leading-none">
-              {new Date(2000, 0, 1, h).toLocaleTimeString('default', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true,
-              })}
-            </span>
-          ))}
-        </div>
-        <div
-          ref={trackRef}
-          role="application"
-          aria-label="Day timeline"
-          className="flex-1 relative min-w-0 rounded-lg overflow-visible border border-slate-700/80 bg-slate-800/30 select-none cursor-crosshair"
-          style={{ height: trackHeightPx, minHeight: trackHeightPx }}
-          onMouseDown={handleTrackMouseDown}
-        >
+      <div
+        className="overflow-y-auto overflow-x-hidden"
+        style={{ maxHeight: VISIBLE_TRACK_HEIGHT_PX, scrollbarGutter: 'stable' }}
+      >
+        <div className="flex gap-3">
+          <div
+            className="flex flex-col justify-between text-xs text-slate-500 shrink-0 w-14 py-0.5"
+            style={{ height: trackHeightPx }}
+          >
+            {hours.map((h) => (
+              <span key={h} className="leading-none">
+                {new Date(2000, 0, 1, h).toLocaleTimeString('default', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
+              </span>
+            ))}
+          </div>
+          <div
+            ref={trackRef}
+            role="application"
+            aria-label="Day timeline"
+            className="flex-1 relative min-w-0 rounded-lg overflow-visible border border-slate-700/80 bg-slate-800/30 select-none cursor-crosshair"
+            style={{ height: trackHeightPx, minHeight: trackHeightPx }}
+            onMouseDown={handleTrackMouseDown}
+          >
           {createPreview && (
             <div
               className="absolute left-0 right-0 rounded-sm bg-blue-600/60 border border-blue-400 pointer-events-none"
@@ -359,6 +365,7 @@ export function DayView({ selectedDate, onSessionsChange }: DayViewProps) {
               </div>
             )
           })}
+          </div>
         </div>
       </div>
     </div>

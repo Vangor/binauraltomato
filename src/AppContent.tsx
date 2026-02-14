@@ -1,15 +1,16 @@
-import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react'
-import { Settings, Maximize2, Minimize2, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react'
+import { Settings, Maximize2, Minimize2, ChevronDown, X, PanelRight, PanelRightClose } from 'lucide-react'
 import { Timer } from './components/Timer'
 import { Calendar } from './components/Calendar'
 import { useTimer } from './hooks/useTimer'
 import { useLocalStorage } from './hooks/useLocalStorage'
+import { useAudio, getTone } from './hooks/useAudio'
 import { PomodoroConfig, NoiseConfig, Session } from './types'
 import { saveSession, updateSession } from './utils/sessionStorage'
 import { requestNotificationPermission, showNotification } from './utils/notifications'
 import { playChime } from './utils/sounds'
+import { migrateNoiseConfig, BINAURAL_PRESETS, AMBIENT_PRESETS } from './AudioPanel'
 
-/** Load only when user opens Audio panel so useAudio/Tone never run on first load. */
 const AudioPanel = lazy(() => import('./AudioPanel'))
 
 const DEFAULT_CONFIG: PomodoroConfig = {
@@ -33,13 +34,34 @@ export default function AppContent() {
   const [config, setConfig] = useLocalStorage<PomodoroConfig>('pomodoro_config', DEFAULT_CONFIG)
   const [noiseConfig, setNoiseConfig] = useLocalStorage<NoiseConfig>('noise_config', DEFAULT_NOISE_CONFIG)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [audioCollapsed, setAudioCollapsed] = useState(true)
-  const [pomodoroCollapsed, setPomodoroCollapsed] = useState(true)
+  const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false)
+  const [pomodoroModalOpen, setPomodoroModalOpen] = useState(false)
+  const [audioModalOpen, setAudioModalOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [audioStartError, setAudioStartError] = useState<string | null>(null)
   const [currentSession, setCurrentSession] = useState<Session | null>(null)
   const timerRef = useRef<ReturnType<typeof useTimer> | null>(null)
   const configRef = useRef(config)
   const currentSessionRef = useRef(currentSession)
+  const settingsDropdownRef = useRef<HTMLDivElement>(null)
+
+  const effectiveNoiseConfig = useMemo(
+    () => migrateNoiseConfig(noiseConfig as unknown as Record<string, unknown>),
+    [noiseConfig]
+  )
+  const { ambientLoadError } = useAudio(effectiveNoiseConfig)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (settingsDropdownRef.current && !settingsDropdownRef.current.contains(e.target as Node)) {
+        setSettingsDropdownOpen(false)
+      }
+    }
+    if (settingsDropdownOpen) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [settingsDropdownOpen])
 
   useEffect(() => {
     configRef.current = config
@@ -161,10 +183,19 @@ export default function AppContent() {
       setCurrentSession(newSession)
       saveSession(newSession)
     }
+    setAudioStartError(null)
+    getTone()
+      .then((T) => {
+        const start = T.start as (() => Promise<void>) | undefined
+        if (typeof start === 'function') return start()
+      })
+      .then(() => setNoiseConfig((c) => ({ ...c, enabled: true })))
+      .catch((e) => setAudioStartError(e instanceof Error ? e.message : String(e)))
     timer.start()
-  }, [timer, currentSession])
+  }, [timer, currentSession, setNoiseConfig])
 
   const handleStop = useCallback(() => {
+    setNoiseConfig((c) => ({ ...c, enabled: false }))
     if (currentSession) {
       updateSession(currentSession.id, {
         endTime: new Date().toISOString(),
@@ -172,7 +203,15 @@ export default function AppContent() {
       setCurrentSession(null)
     }
     timer.stop()
-  }, [timer, currentSession])
+  }, [timer, currentSession, setNoiseConfig])
+
+  const handleShuffle = useCallback(() => {
+    const binauralOptions = BINAURAL_PRESETS.filter((p) => p !== 'off')
+    const ambientOptions = AMBIENT_PRESETS.filter((p) => p !== 'off')
+    const binauralPreset = binauralOptions[Math.floor(Math.random() * binauralOptions.length)]
+    const ambientPreset = ambientOptions[Math.floor(Math.random() * ambientOptions.length)]
+    setNoiseConfig((c) => ({ ...c, binauralPreset, ambientPreset, enabled: true }))
+  }, [setNoiseConfig])
 
   const handleStopRef = useRef(handleStop)
   handleStopRef.current = handleStop
@@ -189,7 +228,7 @@ export default function AppContent() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen h-screen bg-background text-foreground flex flex-col overflow-hidden">
       <header
         className="border-b border-slate-800 p-4"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
@@ -210,20 +249,63 @@ export default function AppContent() {
                 <Maximize2 className="w-5 h-5" />
               )}
             </button>
+            <div className="relative" ref={settingsDropdownRef}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSettingsDropdownOpen((o) => !o)
+                }}
+                className="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1"
+                aria-label="Settings"
+                aria-expanded={settingsDropdownOpen}
+              >
+                <Settings className="w-5 h-5" />
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              {settingsDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 py-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
+                  <button
+                    type="button"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg"
+                    onClick={() => {
+                      setPomodoroModalOpen(true)
+                      setSettingsDropdownOpen(false)
+                    }}
+                  >
+                    Pomodoro
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-b-lg"
+                    onClick={() => {
+                      setAudioModalOpen(true)
+                      setSettingsDropdownOpen(false)
+                    }}
+                  >
+                    Audio
+                  </button>
+                </div>
+              )}
+            </div>
             <button
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => setSidebarOpen((o) => !o)}
               className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
-              aria-label="Toggle settings"
+              aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
             >
-              <Settings className="w-5 h-5" />
+              {sidebarOpen ? (
+                <PanelRightClose className="w-5 h-5" />
+              ) : (
+                <PanelRight className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full">
-        <main className="flex-1 flex items-center justify-center p-8">
-          <Timer
+      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full min-h-0 overflow-hidden">
+        <main className="flex-1 flex flex-col min-h-0 p-8">
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0">
+            <Timer
             timeRemaining={timer.timeRemaining}
             progress={timer.progress}
             state={timer.state}
@@ -233,51 +315,42 @@ export default function AppContent() {
             onStop={handleStop}
             onSkip={timer.skip}
             onAdjustMinutes={(delta) => timer.adjustTime(delta * 60)}
+            onShuffle={handleShuffle}
           />
+          </div>
         </main>
 
-        <aside
-          className={`w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 space-y-6 overflow-y-auto shrink-0 transition-[width,opacity] duration-200 ${
-            showSettings ? 'block opacity-100' : 'hidden opacity-0'
-          }`}
-        >
-          <section className="pb-3">
-            <button
-              type="button"
-              onClick={() => setAudioCollapsed((c) => !c)}
-              className="flex items-center gap-2 w-full text-left text-sm font-medium text-slate-300 hover:text-slate-200"
-              aria-expanded={!audioCollapsed}
-            >
-              {audioCollapsed ? (
-                <ChevronRight className="w-4 h-4 shrink-0" />
-              ) : (
-                <ChevronDown className="w-4 h-4 shrink-0" />
-              )}
-              Audio
-            </button>
-            {!audioCollapsed && (
-              <Suspense fallback={<div className="mt-4 text-slate-400 text-sm">Loading audio…</div>}>
-                <AudioPanel noiseConfig={noiseConfig} setNoiseConfig={setNoiseConfig} />
-              </Suspense>
-            )}
-          </section>
+        {sidebarOpen && (
+          <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 shrink-0 flex flex-col min-h-0 lg:self-stretch lg:min-h-full">
+            <Calendar />
+          </aside>
+        )}
+      </div>
 
-          <section className="pt-3">
-            <button
-              type="button"
-              onClick={() => setPomodoroCollapsed((c) => !c)}
-              className="flex items-center gap-2 w-full text-left text-sm font-medium text-slate-300 hover:text-slate-200"
-              aria-expanded={!pomodoroCollapsed}
-            >
-              {pomodoroCollapsed ? (
-                <ChevronRight className="w-4 h-4 shrink-0" />
-              ) : (
-                <ChevronDown className="w-4 h-4 shrink-0" />
-              )}
-              Pomodoro Settings
-            </button>
-            {!pomodoroCollapsed && (
-            <div className="mt-4 space-y-4">
+      {pomodoroModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4"
+          onClick={() => setPomodoroModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pomodoro settings"
+        >
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">Pomodoro</h2>
+              <button
+                type="button"
+                onClick={() => setPomodoroModalOpen(false)}
+                className="p-2 rounded-lg hover:bg-slate-800"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
               <div>
                 <label className="block text-xs text-slate-400 mb-2">
                   Work Duration: {config.workDuration} min
@@ -343,14 +416,45 @@ export default function AppContent() {
                 />
               </div>
             </div>
-            )}
-          </section>
-
-          <div className="border-t border-slate-800 pt-6">
-            <Calendar />
           </div>
-        </aside>
-      </div>
+        </div>
+      )}
+
+      {audioModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4"
+          onClick={() => setAudioModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Audio settings"
+        >
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">Audio</h2>
+              <button
+                type="button"
+                onClick={() => setAudioModalOpen(false)}
+                className="p-2 rounded-lg hover:bg-slate-800"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <Suspense fallback={<div className="text-slate-400 text-sm">Loading audio…</div>}>
+              <AudioPanel
+                noiseConfig={noiseConfig}
+                setNoiseConfig={setNoiseConfig}
+                ambientLoadError={ambientLoadError}
+                startError={audioStartError}
+                onStartError={(err) => setAudioStartError(err == null ? null : err instanceof Error ? err.message : String(err))}
+              />
+            </Suspense>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
