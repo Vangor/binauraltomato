@@ -34,6 +34,10 @@ export function useTimer({ config, onComplete }: UseTimerOptions) {
     onComplete()
   }, [onComplete])
 
+  const adjustTime = useCallback((deltaSeconds: number) => {
+    setTimeRemaining((prev) => Math.max(0, prev + deltaSeconds))
+  }, [])
+
   useEffect(() => {
     if (state === 'running') {
       intervalRef.current = window.setInterval(() => {
@@ -94,6 +98,7 @@ export function useTimer({ config, onComplete }: UseTimerOptions) {
     pause,
     stop,
     skip,
+    adjustTime,
     resetTimer,
     setCurrentCycle,
     setIsWorkSession,

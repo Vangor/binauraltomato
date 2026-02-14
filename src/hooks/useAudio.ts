@@ -323,7 +323,7 @@ export function useAudio(config: NoiseConfig) {
         }
       }
       if (ctx.state === 'suspended') {
-        ctx.resume().then(() => runNativeBinaural()).catch((err) => console.error('[audio] context resume failed', err))
+        ctx.resume().then(() => runNativeBinaural()).catch((err: unknown) => console.error('[audio] context resume failed', err))
       } else {
         runNativeBinaural()
       }
@@ -337,7 +337,17 @@ export function useAudio(config: NoiseConfig) {
     const fadeOutSec = config.fadeOut ? 1 : 0
 
     const startBinaural = async () => {
-      const Tone = await getTone()
+      type ToneOsc = { volume: { value: number }; connect: (n: unknown, a?: number, b?: number) => ToneOsc; start: (t: number) => void; stop: () => void; dispose: () => void }
+      type ToneMerge = { connect: (n: unknown) => ToneMerge; dispose: () => void }
+      const Tone = (await getTone()) as {
+        start: () => Promise<void>
+        Destination: unknown
+        Gain: new (v: number) => { connect: (d: unknown) => void; dispose: () => void; gain: { value: number; linearRampTo: (a: number, b: number, c: number) => void } }
+        Noise: new (o: unknown) => { volume: { value: number }; connect: (n: unknown) => void; start: () => void; stop: () => void; dispose: () => void }
+        Merge: new () => ToneMerge
+        Oscillator: new (o: unknown) => ToneOsc
+        now: () => number
+      }
       await Tone.start()
       if (binauralCancelledRef.current) {
         logAudio('binaural: cancelled after Tone.start(), skipping')
@@ -365,7 +375,7 @@ export function useAudio(config: NoiseConfig) {
         noise.start()
         if (binauralCancelledRef.current) {
           logAudio('binaural: cancelled after block-noise create, skipping')
-          try { noise.stop().dispose() } catch (_e) { /* already disposed */ }
+          try { noise.stop(); noise.dispose() } catch (_e) { /* already disposed */ }
           try { binauralGain.dispose() } catch (_e) { /* already disposed */ }
           disposeBinauralNodes(prev)
           return
@@ -379,9 +389,9 @@ export function useAudio(config: NoiseConfig) {
         if (beatHz != null) {
           const leftFreq = CARRIER_HZ - beatHz / 2
           const rightFreq = CARRIER_HZ + beatHz / 2
-          const merge = new Tone.Merge().connect(binauralGain)
-          const leftOsc = new Tone.Oscillator({ frequency: leftFreq, type: 'sine' }).connect(merge, 0, 0)
-          const rightOsc = new Tone.Oscillator({ frequency: rightFreq, type: 'sine' }).connect(merge, 0, 1)
+          const merge: ToneMerge = new Tone.Merge().connect(binauralGain)
+          const leftOsc: ToneOsc = new Tone.Oscillator({ frequency: leftFreq, type: 'sine' }).connect(merge, 0, 0)
+          const rightOsc: ToneOsc = new Tone.Oscillator({ frequency: rightFreq, type: 'sine' }).connect(merge, 0, 1)
           leftOsc.volume.value = linearToDb(0.5)
           rightOsc.volume.value = linearToDb(0.5)
           const when = Tone.now()
@@ -389,8 +399,8 @@ export function useAudio(config: NoiseConfig) {
           rightOsc.start(when)
           if (binauralCancelledRef.current) {
             logAudio('binaural: cancelled after beat create, skipping')
-            try { leftOsc.stop().dispose() } catch (_e) { /* already disposed */ }
-            try { rightOsc.stop().dispose() } catch (_e) { /* already disposed */ }
+            try { leftOsc.stop(); leftOsc.dispose() } catch (_e) { /* already disposed */ }
+            try { rightOsc.stop(); rightOsc.dispose() } catch (_e) { /* already disposed */ }
             try { merge.dispose() } catch (_e) { /* already disposed */ }
             try { binauralGain.dispose() } catch (_e) { /* already disposed */ }
             disposeBinauralNodes(prev)
@@ -406,7 +416,7 @@ export function useAudio(config: NoiseConfig) {
       }
     }
 
-    startBinaural().catch((err) => {
+    startBinaural().catch((err: unknown) => {
       logAudio('binaural: startBinaural rejected', { err: String(err) })
       console.error(err)
     })
@@ -428,7 +438,7 @@ export function useAudio(config: NoiseConfig) {
       binauralGainRef.current = null
       if (config.fadeOut && prev.gain && toneModuleRef.current) {
         try {
-          prev.gain.gain.linearRampTo(0.001, 1, toneModuleRef.current.now())
+          prev.gain.gain?.linearRampTo(0.001, 1, (toneModuleRef.current as { now: () => number }).now())
         } catch (_e) {
           /* already disposed */
         }
@@ -490,7 +500,7 @@ export function useAudio(config: NoiseConfig) {
           return audio.play()
         })
         .then(() => logAudio('ambient: started (native blob)', { preset: config.ambientPreset }))
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.error('[audio] ambient native load/play failed', url, err)
           setAmbientLoadError(config.ambientPreset)
         })
@@ -521,7 +531,12 @@ export function useAudio(config: NoiseConfig) {
 
     const startAmbient = async () => {
       try {
-        const Tone = await getTone()
+        const Tone = (await getTone()) as {
+          start: () => Promise<void>
+          Destination: unknown
+          Gain: new (v: number) => { connect: (d: unknown) => void; dispose: () => void; gain: { value: number; linearRampTo: (a: number, b: number, c: number) => void } }
+          Player: new () => { loop: boolean; fadeIn: number; fadeOut: number; volume: { value: number }; connect: (n: unknown) => void; load: (u: string) => Promise<void>; start: () => void; dispose: () => void; disposed: boolean }
+        }
         await Tone.start()
         if (ambientCancelledRef.current) {
           logAudio('ambient: cancelled after Tone.start(), skipping')
@@ -564,12 +579,16 @@ export function useAudio(config: NoiseConfig) {
               if (cancelled) {
                 try { player.dispose() } catch (_e) { /* already disposed */ }
                 try { ambientGain.dispose() } catch (_e) { /* already disposed */ }
-                try { prevPlayer?.stop?.().dispose?.() } catch (_e) { /* already disposed */ }
+                try {
+                  prevPlayer?.stop?.()
+                  prevPlayer?.dispose?.()
+                } catch (_e) { /* already disposed */ }
                 try { prevGain?.dispose?.() } catch (_e) { /* already disposed */ }
                 return
               }
               try {
-                prevPlayer?.stop?.().dispose?.()
+                prevPlayer?.stop?.()
+                prevPlayer?.dispose?.()
               } catch (_e) {
                 /* already disposed */
               }
@@ -591,7 +610,7 @@ export function useAudio(config: NoiseConfig) {
                 try { player.dispose() } catch (_e) { /* already disposed */ }
                 try { ambientGain.dispose() } catch (_e) { /* already disposed */ }
               }
-            } catch (err) {
+            } catch (err: unknown) {
               console.error('[audio] ambient: error after load (start/dispose)', err)
               logAudio('ambient: error after load', {
                 preset: config.ambientPreset,
@@ -603,7 +622,7 @@ export function useAudio(config: NoiseConfig) {
                 try { ambientGain.dispose() } catch (_e) { /* already disposed */ }
               }
             }
-          }).catch((err) => {
+          }).catch((err: unknown) => {
             console.error('[audio] ambient: load failed', config.ambientPreset, err)
             logAudio('ambient: load failed', {
               preset: config.ambientPreset,
@@ -629,7 +648,7 @@ export function useAudio(config: NoiseConfig) {
       }
     }
 
-    startAmbient().catch((err) => {
+    startAmbient().catch((err: unknown) => {
       console.error('[audio] ambient: startAmbient promise rejected', config.ambientPreset, err)
       logAudio('ambient: startAmbient promise rejected', { preset: config.ambientPreset, err: String(err) })
       if (!ambientCancelledRef.current) {
@@ -662,7 +681,7 @@ export function useAudio(config: NoiseConfig) {
       }
       if (config.fadeOut && prevGain && toneModuleRef.current) {
         try {
-          prevGain.gain.linearRampTo(0.001, 1, toneModuleRef.current.now())
+          prevGain.gain?.linearRampTo(0.001, 1, (toneModuleRef.current as { now: () => number }).now())
         } catch (_e) {
           /* already disposed */
         }
@@ -688,10 +707,10 @@ export function useAudio(config: NoiseConfig) {
         nativeAmbientAudioRef.current.volume = config.ambientVolume
       }
     } else {
-      if (binauralGainRef.current) {
+      if (binauralGainRef.current?.gain != null) {
         binauralGainRef.current.gain.value = config.binauralVolume
       }
-      if (ambientGainRef.current) {
+      if (ambientGainRef.current?.gain != null) {
         ambientGainRef.current.gain.value = config.ambientVolume
       }
     }

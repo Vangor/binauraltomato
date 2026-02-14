@@ -68,7 +68,7 @@ export default function AppContent() {
     if (isWork) {
       playChime()
       showNotification('Focus session complete!', {
-        body: 'Time for a break',
+        body: 'Start break when ready, or stop to end session',
         tag: 'pomodoro-complete',
       })
 
@@ -77,20 +77,20 @@ export default function AppContent() {
         : config.shortBreakDuration
 
       timer.setIsWorkSession(false)
-      timer.resetTimer(breakDuration)
       timer.setCurrentCycle(newCycle)
+      timer.resetTimer(breakDuration)
+      // Do not auto-start: wait for user to press Start (break) or Stop (end session)
     } else {
       playChime()
       showNotification('Break complete!', {
-        body: 'Ready to focus again?',
+        body: 'Start focus when ready',
         tag: 'break-complete',
       })
 
       timer.setIsWorkSession(true)
       timer.resetTimer(config.workDuration)
+      // Do not auto-start: wait for user to press Start (next focus) or Stop
     }
-
-    timer.start()
   }, [])
 
   const timer = useTimer({
@@ -174,6 +174,20 @@ export default function AppContent() {
     timer.stop()
   }, [timer, currentSession])
 
+  const handleStopRef = useRef(handleStop)
+  handleStopRef.current = handleStop
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.userAgent.toLowerCase().includes('electron')) {
+      return
+    }
+    const onSessionEndSignal = () => {
+      handleStopRef.current()
+    }
+    window.addEventListener('session-end-signal', onSessionEndSignal)
+    return () => window.removeEventListener('session-end-signal', onSessionEndSignal)
+  }, [])
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header
@@ -218,15 +232,16 @@ export default function AppContent() {
             onPause={timer.pause}
             onStop={handleStop}
             onSkip={timer.skip}
+            onAdjustMinutes={(delta) => timer.adjustTime(delta * 60)}
           />
         </main>
 
         <aside
-          className={`w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 space-y-6 overflow-y-auto shrink-0 transition-[width,opacity] duration-200 ${
+          className={`w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 space-y-6 overflow-y-auto shrink-0 transition-[width,opacity] duration-200 ${
             showSettings ? 'block opacity-100' : 'hidden opacity-0'
           }`}
         >
-          <section className="border-b border-slate-800 pb-6">
+          <section className="pb-3">
             <button
               type="button"
               onClick={() => setAudioCollapsed((c) => !c)}
@@ -247,7 +262,7 @@ export default function AppContent() {
             )}
           </section>
 
-          <section className="border-t border-slate-800 pt-6">
+          <section className="pt-3">
             <button
               type="button"
               onClick={() => setPomodoroCollapsed((c) => !c)}

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, protocol, net } = require('electron')
+const { app, BrowserWindow, protocol, net, powerMonitor } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { pathToFileURL } = require('url')
@@ -15,6 +15,8 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, supportFetchAPI: true, secure: true } },
 ])
 
+let mainWindow = null
+
 function createWindow() {
   log('createWindow', { isDev, distIndexPath, distExists: fs.existsSync(distIndexPath) })
 
@@ -27,6 +29,7 @@ function createWindow() {
       contextIsolation: true,
       enableRemoteModule: false,
       webSecurity: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
     backgroundColor: '#0f172a',
     titleBarStyle: 'hiddenInset',
@@ -53,6 +56,17 @@ function createWindow() {
     win.loadURL('app://./index.html').catch((err) => {
       log('loadURL error:', err.message)
     })
+  }
+
+  mainWindow = win
+  win.on('closed', () => {
+    mainWindow = null
+  })
+}
+
+function sendSessionEndToRenderer() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('session-end-signal')
   }
 }
 
@@ -86,6 +100,16 @@ app.whenReady().then(() => {
   }
   log('app ready')
   createWindow()
+
+  powerMonitor.on('lock-screen', () => {
+    log('lock-screen')
+    sendSessionEndToRenderer()
+  })
+  powerMonitor.on('suspend', () => {
+    log('suspend')
+    sendSessionEndToRenderer()
+  })
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
