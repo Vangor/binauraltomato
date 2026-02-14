@@ -1,0 +1,10 @@
+# Bun configuration for FocusForge
+[install]
+# Use production dependencies by default
+production = false
+
+# Auto-install peer dependencies
+peer = true
+
+# Don't save exact versions
+exact = false

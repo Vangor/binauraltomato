@@ -1,0 +1,18 @@
+appId: com.focusforge.app
+productName: FocusForge
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg
+    - zip
+  # icon: build/icon.icns  # Uncomment when build/icon.icns exists
+dmg:
+  title: FocusForge
+  # icon: build/icon.icns  # Uncomment when build/icon.icns exists
