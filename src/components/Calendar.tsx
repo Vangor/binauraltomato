@@ -162,7 +162,9 @@ function SessionsList({
 }
 
 export function Calendar() {
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(
+    () => new Date().toISOString().split('T')[0]
+  )
   const [currentDate, setCurrentDate] = useState(new Date())
   const [refresh, setRefresh] = useState(0)
 
