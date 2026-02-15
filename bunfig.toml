@@ -1,4 +1,4 @@
-# Bun configuration for FocusForge
+# Bun configuration for EchoFlow
 [install]
 # Use production dependencies by default
 production = false

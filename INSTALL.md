@@ -1,4 +1,4 @@
-# FocusForge Installation Guide
+# EchoFlow Installation Guide
 
 ## Prerequisites
 

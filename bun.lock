@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "focusforge",
+      "name": "echoflow",
       "dependencies": {
         "clsx": "^2.1.0",
         "lucide-react": "^0.344.0",

@@ -1,5 +1,5 @@
-appId: com.focusforge.app
-productName: FocusForge
+appId: com.echoflow.app
+productName: EchoFlow
 directories:
   output: release
   buildResources: build
@@ -14,5 +14,5 @@ mac:
     - zip
   # icon: build/icon.icns  # Uncomment when build/icon.icns exists
 dmg:
-  title: FocusForge
+  title: EchoFlow
   # icon: build/icon.icns  # Uncomment when build/icon.icns exists

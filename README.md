@@ -1,4 +1,4 @@
-# FocusForge
+# EchoFlow
 
 A full-stack web application for ADHD-focused Pomodoro sessions with binaural white noise. Built with React + TypeScript + Vite, designed for easy Electron port to macOS app.
 

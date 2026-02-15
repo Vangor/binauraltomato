@@ -1,6 +1,6 @@
 import { Session } from '../types'
 
-const STORAGE_KEY = 'focusforge_sessions'
+const STORAGE_KEY = 'echoflow_sessions'
 
 export function getSessions(): Session[] {
   try {

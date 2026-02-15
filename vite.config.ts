@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'FocusForge',
-        short_name: 'FocusForge',
+        name: 'EchoFlow',
+        short_name: 'EchoFlow',
         description: 'ADHD-focused Pomodoro sessions with binaural white noise',
         theme_color: '#0f172a',
         background_color: '#0f172a',

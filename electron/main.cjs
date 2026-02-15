@@ -21,7 +21,7 @@ function createWindow() {
   log('createWindow', { isDev, distIndexPath, distExists: fs.existsSync(distIndexPath) })
 
   const win = new BrowserWindow({
-    title: 'FocusForge',
+    title: 'EchoFlow',
     width: 1200,
     height: 800,
     webPreferences: {

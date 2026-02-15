@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "focusforge",
+  "productName": "EchoFlow",
   "version": "0.1.0",
-  "identifier": "com.binauraltomato.app",
+  "identifier": "com.echoflow.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5174",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "FocusForge",
+        "title": "EchoFlow",
         "width": 1200,
         "height": 800,
         "resizable": true,
