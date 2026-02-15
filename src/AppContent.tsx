@@ -10,8 +10,26 @@ import { saveSession, updateSession } from './utils/sessionStorage'
 import { requestNotificationPermission, showNotification } from './utils/notifications'
 import { playChime } from './utils/sounds'
 import { migrateNoiseConfig, BINAURAL_PRESETS, AMBIENT_PRESETS } from './AudioPanel'
+import { formatTime } from './utils/formatTime'
+import type { TimerState } from './types'
 
 const AudioPanel = lazy(() => import('./AudioPanel'))
+
+function getTrayStatusText(
+  state: TimerState,
+  timeRemaining: number,
+  isWorkSession: boolean
+): string {
+  const timeStr = formatTime(timeRemaining)
+  if (state === 'idle') return 'EchoFlow'
+  if (state === 'paused') {
+    return isWorkSession ? `Focus (paused) ${timeStr}` : `Break (paused) ${timeStr}`
+  }
+  if (state === 'running') {
+    return isWorkSession ? `Focus ${timeStr}` : `Break ${timeStr}`
+  }
+  return 'EchoFlow'
+}
 
 const DEFAULT_CONFIG: PomodoroConfig = {
   workDuration: 25,
@@ -98,6 +116,7 @@ export default function AppContent() {
         totalMinutes: currentSession.totalMinutes + actualMinutes,
         endTime: new Date().toISOString(),
       })
+      window.dispatchEvent(new CustomEvent('sessions-updated'))
     }
 
     if (currentBreakSession && !isWork) {
@@ -114,6 +133,7 @@ export default function AppContent() {
         endTime: new Date().toISOString(),
         totalMinutes: actualMinutes,
       })
+      window.dispatchEvent(new CustomEvent('sessions-updated'))
       setCurrentBreakSession(null)
     }
 
@@ -157,38 +177,17 @@ export default function AppContent() {
   }, [])
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
-        return
-      }
-
-      switch (e.key) {
-        case ' ':
-          e.preventDefault()
-          if (timer.state === 'running') {
-            timer.pause()
-          } else {
-            timer.start()
-          }
-          break
-        case 's':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            timer.stop()
-          }
-          break
-        case 'f':
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            toggleFullscreen()
-          }
-          break
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [timer])
+    const w = typeof window !== 'undefined' ? window : null
+    if (!w || !(w as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) return
+    const status = getTrayStatusText(
+      timer.state,
+      timer.timeRemaining,
+      timer.isWorkSession
+    )
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke('set_tray_status', { status }))
+      .catch(() => {})
+  }, [timer.state, timer.timeRemaining, timer.isWorkSession])
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -238,6 +237,40 @@ export default function AppContent() {
     timer.start()
   }, [timer, currentSession, currentBreakSession, setNoiseConfig])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
+        return
+      }
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault()
+          if (timer.state === 'running') {
+            timer.pause()
+          } else {
+            handleStart()
+          }
+          break
+        case 's':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            timer.stop()
+          }
+          break
+        case 'f':
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault()
+            toggleFullscreen()
+          }
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [timer, handleStart, toggleFullscreen])
+
   const handleStop = useCallback(() => {
     setNoiseConfig((c) => ({ ...c, enabled: false }))
     const t = timerRef.current
@@ -251,6 +284,7 @@ export default function AppContent() {
         endTime,
         totalMinutes: currentSession.totalMinutes + actualMinutes,
       })
+      window.dispatchEvent(new CustomEvent('sessions-updated'))
       setCurrentSession(null)
     } else if (currentSession && !t?.isWorkSession) {
       setCurrentSession(null)
@@ -273,6 +307,7 @@ export default function AppContent() {
         endTime: new Date().toISOString(),
         totalMinutes: actualMinutes,
       })
+      window.dispatchEvent(new CustomEvent('sessions-updated'))
       setCurrentBreakSession(null)
     }
     timer.stop()
@@ -300,85 +335,87 @@ export default function AppContent() {
     return () => window.removeEventListener('session-end-signal', onSessionEndSignal)
   }, [])
 
-  return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header
-        className="border-b border-slate-800 p-4"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+  const headerContent = (
+    <div
+      className="flex items-center justify-end gap-2"
+      style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    >
+      <button
+        onClick={toggleFullscreen}
+        className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+        aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-end">
-          <div
-            className="flex items-center gap-2"
-            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-          >
+        {isFullscreen ? (
+          <Minimize2 className="w-5 h-5" />
+        ) : (
+          <Maximize2 className="w-5 h-5" />
+        )}
+      </button>
+      <div className="relative" ref={settingsDropdownRef}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            setSettingsDropdownOpen((o) => !o)
+          }}
+          className="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1"
+          aria-label="Settings"
+          aria-expanded={settingsDropdownOpen}
+        >
+          <Settings className="w-5 h-5" />
+          <ChevronDown className="w-4 h-4" />
+        </button>
+        {settingsDropdownOpen && (
+          <div className="absolute right-0 top-full mt-1 py-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
             <button
-              onClick={toggleFullscreen}
-              className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              type="button"
+              className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg"
+              onClick={() => {
+                setPomodoroModalOpen(true)
+                setSettingsDropdownOpen(false)
+              }}
             >
-              {isFullscreen ? (
-                <Minimize2 className="w-5 h-5" />
-              ) : (
-                <Maximize2 className="w-5 h-5" />
-              )}
+              Pomodoro
             </button>
-            <div className="relative" ref={settingsDropdownRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSettingsDropdownOpen((o) => !o)
-                }}
-                className="p-2 rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1"
-                aria-label="Settings"
-                aria-expanded={settingsDropdownOpen}
-              >
-                <Settings className="w-5 h-5" />
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              {settingsDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 py-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50">
-                  <button
-                    type="button"
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg"
-                    onClick={() => {
-                      setPomodoroModalOpen(true)
-                      setSettingsDropdownOpen(false)
-                    }}
-                  >
-                    Pomodoro
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-b-lg"
-                    onClick={() => {
-                      setAudioModalOpen(true)
-                      setSettingsDropdownOpen(false)
-                    }}
-                  >
-                    Audio
-                  </button>
-                </div>
-              )}
-            </div>
             <button
-              onClick={() => setSidebarOpen((o) => !o)}
-              className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
-              aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+              type="button"
+              className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-b-lg"
+              onClick={() => {
+                setAudioModalOpen(true)
+                setSettingsDropdownOpen(false)
+              }}
             >
-              {sidebarOpen ? (
-                <PanelRightClose className="w-5 h-5" />
-              ) : (
-                <PanelRight className="w-5 h-5" />
-              )}
+              Audio
             </button>
           </div>
-        </div>
+        )}
+      </div>
+      <button
+        onClick={() => setSidebarOpen((o) => !o)}
+        className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+        aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+      >
+        {sidebarOpen ? (
+          <PanelRightClose className="w-5 h-5" />
+        ) : (
+          <PanelRight className="w-5 h-5" />
+        )}
+      </button>
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row overflow-auto">
+      {/* Full-width top bar: only on small screens */}
+      <header
+        className="shrink-0 border-b border-slate-800 p-4 lg:hidden"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        {headerContent}
       </header>
 
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl mx-auto w-full min-h-0">
-        <main className="flex-1 flex flex-col min-h-0 p-8 flex-basis-0">
-          <div className="flex flex-col items-center justify-center py-8">
-            <Timer
+      <main className="flex-1 flex flex-col min-h-[360px] min-w-0 p-8 lg:min-w-[320px]">
+        <div className="flex flex-col items-center justify-center py-8 flex-1">
+          <Timer
             timeRemaining={timer.timeRemaining}
             progress={timer.progress}
             state={timer.state}
@@ -391,11 +428,27 @@ export default function AppContent() {
             onAdjustMinutes={(delta) => timer.adjustTime(delta * 60)}
             onShuffle={handleShuffle}
           />
-          </div>
-        </main>
+        </div>
+      </main>
+
+      {/* Right column: header (fixed on top) + sidebar that scrolls below; on small width hidden when sidebar closed */}
+      <div
+        className={`flex flex-col shrink-0 border-t lg:border-t-0 border-l border-slate-800 min-h-0 lg:min-h-screen ${
+          sidebarOpen
+            ? 'w-full lg:w-96 flex-1 lg:flex-initial'
+            : 'hidden lg:flex w-full lg:w-auto lg:min-w-[12rem]'
+        }`}
+      >
+        {/* Sidebar header: only on large screens (top bar used on small) */}
+        <header
+          className="shrink-0 border-b border-slate-800 p-4 hidden lg:block"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        >
+          {headerContent}
+        </header>
 
         {sidebarOpen && (
-          <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 p-6 shrink-0 flex flex-col min-h-0 overflow-y-auto lg:self-stretch lg:min-h-full">
+          <aside className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col">
             <Calendar />
           </aside>
         )}

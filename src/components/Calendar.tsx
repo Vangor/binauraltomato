@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Clock, Target, Pencil, Trash2 } from 'lucide-react'
 import {
   getSessionsByDate,
@@ -161,12 +161,20 @@ function SessionsList({
   )
 }
 
+const SESSIONS_UPDATED = 'sessions-updated'
+
 export function Calendar() {
   const [selectedDate, setSelectedDate] = useState<string | null>(
     () => new Date().toISOString().split('T')[0]
   )
   const [currentDate, setCurrentDate] = useState(new Date())
   const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    const onSessionsUpdated = () => setRefresh((r) => r + 1)
+    window.addEventListener(SESSIONS_UPDATED, onSessionsUpdated)
+    return () => window.removeEventListener(SESSIONS_UPDATED, onSessionsUpdated)
+  }, [])
 
   const getDaysInView = () => {
     const start = new Date(currentDate)

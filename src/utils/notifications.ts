@@ -19,8 +19,8 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export function showNotification(title: string, options?: NotificationOptions): void {
   if (Notification.permission === 'granted') {
     new Notification(title, {
-      icon: '/vite.svg',
-      badge: '/vite.svg',
+      icon: '/logo.png',
+      badge: '/logo.png',
       ...options,
     })
   }
