@@ -170,8 +170,9 @@ export function Calendar() {
 
   const getDaysInView = () => {
     const start = new Date(currentDate)
-    const day = start.getDay()
-    const diff = start.getDate() - day
+    const day = start.getDay() // 0=Sun, 1=Mon, ...
+    const daysToMonday = (day + 6) % 7 // Monday-first week
+    const diff = start.getDate() - daysToMonday
     start.setDate(diff)
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(start)

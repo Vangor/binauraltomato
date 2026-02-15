@@ -40,9 +40,11 @@ export default function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [audioStartError, setAudioStartError] = useState<string | null>(null)
   const [currentSession, setCurrentSession] = useState<Session | null>(null)
+  const [currentBreakSession, setCurrentBreakSession] = useState<Session | null>(null)
   const timerRef = useRef<ReturnType<typeof useTimer> | null>(null)
   const configRef = useRef(config)
   const currentSessionRef = useRef(currentSession)
+  const currentBreakSessionRef = useRef(currentBreakSession)
   const settingsDropdownRef = useRef<HTMLDivElement>(null)
 
   const effectiveNoiseConfig = useMemo(
@@ -71,20 +73,48 @@ export default function AppContent() {
     currentSessionRef.current = currentSession
   }, [currentSession])
 
+  useEffect(() => {
+    currentBreakSessionRef.current = currentBreakSession
+  }, [currentBreakSession])
+
   const handleTimerComplete = useCallback(() => {
     if (!timerRef.current) return
 
     const timer = timerRef.current
     const config = configRef.current
     const currentSession = currentSessionRef.current
+    const currentBreakSession = currentBreakSessionRef.current
     const isWork = timer.isWorkSession
     const newCycle = isWork ? timer.currentCycle + 1 : timer.currentCycle
 
     if (currentSession && isWork) {
+      const plannedSeconds = config.workDuration * 60
+      const actualMinutes = Math.max(
+        0,
+        Math.round((plannedSeconds - timer.timeRemaining) / 60)
+      )
       updateSession(currentSession.id, {
         cyclesCompleted: newCycle,
-        totalMinutes: currentSession.totalMinutes + config.workDuration,
+        totalMinutes: currentSession.totalMinutes + actualMinutes,
+        endTime: new Date().toISOString(),
       })
+    }
+
+    if (currentBreakSession && !isWork) {
+      const breakDuration =
+        newCycle % config.cyclesUntilLongBreak === 0
+          ? config.longBreakDuration
+          : config.shortBreakDuration
+      const plannedSeconds = breakDuration * 60
+      const actualMinutes = Math.max(
+        0,
+        Math.round((plannedSeconds - timer.timeRemaining) / 60)
+      )
+      updateSession(currentBreakSession.id, {
+        endTime: new Date().toISOString(),
+        totalMinutes: actualMinutes,
+      })
+      setCurrentBreakSession(null)
     }
 
     if (isWork) {
@@ -183,27 +213,70 @@ export default function AppContent() {
       setCurrentSession(newSession)
       saveSession(newSession)
     }
-    setAudioStartError(null)
-    getTone()
-      .then((T) => {
-        const start = T.start as (() => Promise<void>) | undefined
-        if (typeof start === 'function') return start()
-      })
-      .then(() => setNoiseConfig((c) => ({ ...c, enabled: true })))
-      .catch((e) => setAudioStartError(e instanceof Error ? e.message : String(e)))
+    if (!currentBreakSession && !timer.isWorkSession) {
+      const newBreakSession: Session = {
+        id: crypto.randomUUID(),
+        date: new Date().toISOString().split('T')[0],
+        startTime: new Date().toISOString(),
+        cyclesCompleted: 0,
+        totalMinutes: 0,
+        type: 'break',
+      }
+      setCurrentBreakSession(newBreakSession)
+      saveSession(newBreakSession)
+    }
+    if (timer.isWorkSession) {
+      setAudioStartError(null)
+      getTone()
+        .then((T) => {
+          const start = T.start as (() => Promise<void>) | undefined
+          if (typeof start === 'function') return start()
+        })
+        .then(() => setNoiseConfig((c) => ({ ...c, enabled: true })))
+        .catch((e) => setAudioStartError(e instanceof Error ? e.message : String(e)))
+    }
     timer.start()
-  }, [timer, currentSession, setNoiseConfig])
+  }, [timer, currentSession, currentBreakSession, setNoiseConfig])
 
   const handleStop = useCallback(() => {
     setNoiseConfig((c) => ({ ...c, enabled: false }))
-    if (currentSession) {
+    const t = timerRef.current
+    if (currentSession && t?.isWorkSession) {
+      const endTime = new Date().toISOString()
+      const actualMinutes = Math.max(
+        0,
+        Math.round((config.workDuration * 60 - (t?.timeRemaining ?? 0)) / 60)
+      )
       updateSession(currentSession.id, {
-        endTime: new Date().toISOString(),
+        endTime,
+        totalMinutes: currentSession.totalMinutes + actualMinutes,
       })
       setCurrentSession(null)
+    } else if (currentSession && !t?.isWorkSession) {
+      setCurrentSession(null)
+    }
+    if (currentBreakSession) {
+      const breakDuration =
+        (t?.currentCycle ?? 0) % config.cyclesUntilLongBreak === 0
+          ? config.longBreakDuration
+          : config.shortBreakDuration
+      const actualMinutes =
+        t && !t.isWorkSession
+          ? Math.max(
+              0,
+              Math.round(
+                (breakDuration * 60 - (t?.timeRemaining ?? 0)) / 60
+              )
+            )
+          : 0
+      updateSession(currentBreakSession.id, {
+        endTime: new Date().toISOString(),
+        totalMinutes: actualMinutes,
+      })
+      setCurrentBreakSession(null)
     }
     timer.stop()
-  }, [timer, currentSession, setNoiseConfig])
+  }, [timer, currentSession, currentBreakSession, config, setNoiseConfig])
 
   const handleShuffle = useCallback(() => {
     const binauralOptions = BINAURAL_PRESETS.filter((p) => p !== 'off')
@@ -310,6 +383,7 @@ export default function AppContent() {
             progress={timer.progress}
             state={timer.state}
             isWorkSession={timer.isWorkSession}
+            sessionStartTime={timer.sessionStartTime}
             onStart={handleStart}
             onPause={timer.pause}
             onStop={handleStop}

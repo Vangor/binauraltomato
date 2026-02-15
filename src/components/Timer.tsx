@@ -1,5 +1,5 @@
-import { Play, Pause, Square, SkipForward, Shuffle } from 'lucide-react'
-import { formatTime } from '../utils/formatTime'
+import { Play, Pause, Square, Coffee, Shuffle } from 'lucide-react'
+import { formatTime, formatTimeOfDay } from '../utils/formatTime'
 import { TimerState } from '../types'
 
 interface TimerProps {
@@ -7,6 +7,7 @@ interface TimerProps {
   progress: number
   state: TimerState
   isWorkSession: boolean
+  sessionStartTime?: number | null
   onStart: () => void
   onPause: () => void
   onStop: () => void
@@ -20,6 +21,7 @@ export function Timer({
   progress,
   state,
   isWorkSession,
+  sessionStartTime,
   onStart,
   onPause,
   onStop,
@@ -43,38 +45,48 @@ export function Timer({
             −5
           </button>
         )}
-        <div className="relative w-64 h-64">
-          <svg className="transform -rotate-90 w-64 h-64">
-            <circle
-              cx="128"
-              cy="128"
-              r="90"
-              stroke="currentColor"
-              strokeWidth="8"
-              fill="none"
-              className="text-slate-700"
-            />
-            <circle
-              cx="128"
-              cy="128"
-              r="90"
-              stroke="currentColor"
-              strokeWidth="8"
-              fill="none"
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-              className="text-blue-500 transition-all duration-1000"
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-5xl font-light tabular-nums">
-              {formatTime(timeRemaining)}
-            </div>
-            <div className="text-sm text-slate-400 mt-2">
-              {isWorkSession ? 'Focus Time' : 'Break Time'}
+        <div className="flex flex-col items-center">
+          <div className="relative w-64 h-64">
+            <svg className="transform -rotate-90 w-64 h-64">
+              <circle
+                cx="128"
+                cy="128"
+                r="90"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="none"
+                className="text-slate-700"
+              />
+              <circle
+                cx="128"
+                cy="128"
+                r="90"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="none"
+                strokeDasharray={circumference}
+                strokeDashoffset={offset}
+                className="text-blue-500 transition-all duration-1000"
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="text-5xl font-light tabular-nums">
+                {formatTime(timeRemaining)}
+              </div>
+              <div className="text-sm text-slate-400 mt-2">
+                {isWorkSession ? 'Focus Time' : 'Break Time'}
+              </div>
             </div>
           </div>
+          {sessionStartTime != null && (
+            <div className="text-xs text-slate-500 mt-3 text-center space-y-0.5">
+              <div>Started {formatTimeOfDay(sessionStartTime)}</div>
+              <div>
+                Ends {formatTimeOfDay(sessionStartTime + timeRemaining * 1000)}
+              </div>
+            </div>
+          )}
         </div>
         {onAdjustMinutes && (
           <button
@@ -116,9 +128,9 @@ export function Timer({
         <button
           onClick={onSkip}
           className="p-4 rounded-full bg-slate-800 hover:bg-slate-700 transition-colors"
-          aria-label="Skip to next session"
+          aria-label={isWorkSession ? 'Skip to break' : 'Skip to focus'}
         >
-          <SkipForward className="w-6 h-6" />
+          <Coffee className="w-6 h-6" />
         </button>
         {onShuffle && (
           <button

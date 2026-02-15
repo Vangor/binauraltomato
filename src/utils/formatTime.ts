@@ -12,3 +12,10 @@ export function formatDuration(minutes: number): string {
   }
   return `${mins}m`
 }
+
+export function formatTimeOfDay(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
